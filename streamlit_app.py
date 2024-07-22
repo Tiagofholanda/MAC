@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from datetime import datetime
 # from win32com.client import Dispatch  # Removido para compatibilidade
-from fpdf import FPDF
+from fpdf import FPDF # type: ignore
 
 # Função para verificar e instalar as dependências necessárias
 def verificar_instalar_dependencias():
@@ -12,11 +12,11 @@ def verificar_instalar_dependencias():
 
     try:
         import pandas
-        import openpyxl
+        import openpyxl # type: ignore
         # import win32com.client  # Removido para compatibilidade
-        import xlsxwriter
+        import xlsxwriter # type: ignore
         import PIL
-        import fpdf
+        import fpdf # type: ignore
     except ImportError:
         st.write("Instalando dependências necessárias...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
@@ -119,12 +119,13 @@ def verificar_ortografia(nome_coluna, df_bd):
 
 def verificar_nomes(df_matriz, df_bd, df_nomes):
     erros_encontrados = []
+
     for coluna in df_matriz.iloc[7].dropna().index:
         if df_matriz.iloc[7, df_matriz.columns.get_loc(coluna)] == "BANCO DE NOMES":
             for indice, valor in enumerate(df_bd[coluna]):
                 if pd.notnull(valor):
                     partes_nome = valor.split()
-                    for parte_nome:
+                    for parte_nome in partes_nome:
                         if not nome_eh_valido(parte_nome, df_nomes):
                             erros_encontrados.append({
                                 'Data': datetime.now(),
@@ -133,6 +134,7 @@ def verificar_nomes(df_matriz, df_bd, df_nomes):
                                 'Valor': valor,
                                 'Analise': 'Nomes'
                             })
+
     return pd.DataFrame(erros_encontrados)
 
 def nome_eh_valido(nome, df_nomes):
@@ -297,8 +299,8 @@ def concatenar_resultados():
         resultado1 = AnalisePreenchimento(df_bd, df_matriz)
         resultado2 = AnalisarTipos(df_bd, df_matriz)
         resultado3 = main_verificar_ortografia(df_matriz, df_bd)
-        resultado4 = verificar_nomes(df_matriz, df_bd, df_nomes) se 'df_nomes' in globals() else pd.DataFrame()
-        resultado5 = verificar_intervalos(df_matriz, df_bd, df_intervalos) se 'df_intervalos' in globals() else pd.DataFrame()
+        resultado4 = verificar_nomes(df_matriz, df_bd, df_nomes) if 'df_nomes' in globals() else pd.DataFrame()
+        resultado5 = verificar_intervalos(df_matriz, df_bd, df_intervalos) if 'df_intervalos' in globals() else pd.DataFrame() # type: ignore
         resultado6 = verificar_condicionais(df_matriz, df_bd)
         resultado_concatenado = pd.concat([resultado1, resultado2, resultado3, resultado4, resultado5, resultado6], ignore_index=True)
         st.write(resultado_concatenado.head(20))
