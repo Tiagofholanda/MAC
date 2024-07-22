@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
-import win32com.client as win32
+# from win32com.client import Dispatch  # Removido para compatibilidade
 from fpdf import FPDF
 
 # Função para verificar e instalar as dependências necessárias
@@ -13,7 +13,7 @@ def verificar_instalar_dependencias():
     try:
         import pandas
         import openpyxl
-        import win32com.client
+        # import win32com.client  # Removido para compatibilidade
         import xlsxwriter
         import PIL
         import fpdf
@@ -81,38 +81,41 @@ def main_verificar_ortografia(df_matriz, df_bd):
     return pd.DataFrame(erros_ortograficos)
 
 def verificar_ortografia(nome_coluna, df_bd):
-    WordApp = iniciar_aplicativo_word()
+    # Verificação de ortografia desativada para compatibilidade
+    # WordApp = iniciar_aplicativo_word()
     erros_ortograficos = []
     try:
         for indice, valor in df_bd[nome_coluna].items():
             if pd.notnull(valor):
-                if not verificar_ortografia_word(valor, WordApp):
-                    erros_ortograficos.append({
-                        'Data': datetime.now(),
-                        'Linha': indice+1,
-                        'Coluna': nome_coluna,
-                        'Valor': valor,
-                        'Analise': 'Ortografia'
-                    })
+                # if not verificar_ortografia_word(valor, WordApp):
+                erros_ortograficos.append({
+                    'Data': datetime.now(),
+                    'Linha': indice+1,
+                    'Coluna': nome_coluna,
+                    'Valor': valor,
+                    'Analise': 'Ortografia'
+                })
     finally:
-        fechar_aplicativo_word(WordApp)
+        pass
+        # fechar_aplicativo_word(WordApp)
     return erros_ortograficos
 
-def iniciar_aplicativo_word():
-    WordApp = win32.Dispatch("Word.Application")
-    WordApp.Visible = False
-    return WordApp
+# Funções de inicialização e fechamento do aplicativo Word removidas
+# def iniciar_aplicativo_word():
+#     WordApp = win32.Dispatch("Word.Application")
+#     WordApp.Visible = False
+#     return WordApp
 
-def fechar_aplicativo_word(WordApp):
-    if WordApp is not None:
-        WordApp.Quit()
+# def fechar_aplicativo_word(WordApp):
+#     if WordApp is not None:
+#         WordApp.Quit()
 
-def verificar_ortografia_word(palavra, WordApp):
-    try:
-        return WordApp.CheckSpelling(palavra)
-    except Exception as e:
-        st.write(f"Erro ao verificar ortografia: {e}")
-        return True
+# def verificar_ortografia_word(palavra, WordApp):
+#     try:
+#         return WordApp.CheckSpelling(palavra)
+#     except Exception as e:
+#         st.write(f"Erro ao verificar ortografia: {e}")
+#         return True
 
 def verificar_nomes(df_matriz, df_bd, df_nomes):
     erros_encontrados = []
@@ -121,7 +124,7 @@ def verificar_nomes(df_matriz, df_bd, df_nomes):
             for indice, valor in enumerate(df_bd[coluna]):
                 if pd.notnull(valor):
                     partes_nome = valor.split()
-                    for parte_nome in partes_nome:
+                    for parte_nome:
                         if not nome_eh_valido(parte_nome, df_nomes):
                             erros_encontrados.append({
                                 'Data': datetime.now(),
@@ -294,8 +297,8 @@ def concatenar_resultados():
         resultado1 = AnalisePreenchimento(df_bd, df_matriz)
         resultado2 = AnalisarTipos(df_bd, df_matriz)
         resultado3 = main_verificar_ortografia(df_matriz, df_bd)
-        resultado4 = verificar_nomes(df_matriz, df_bd, df_nomes) if 'df_nomes' in globals() else pd.DataFrame()
-        resultado5 = verificar_intervalos(df_matriz, df_bd, df_intervalos) if 'df_intervalos' in globals() else pd.DataFrame()
+        resultado4 = verificar_nomes(df_matriz, df_bd, df_nomes) se 'df_nomes' in globals() else pd.DataFrame()
+        resultado5 = verificar_intervalos(df_matriz, df_bd, df_intervalos) se 'df_intervalos' in globals() else pd.DataFrame()
         resultado6 = verificar_condicionais(df_matriz, df_bd)
         resultado_concatenado = pd.concat([resultado1, resultado2, resultado3, resultado4, resultado5, resultado6], ignore_index=True)
         st.write(resultado_concatenado.head(20))
