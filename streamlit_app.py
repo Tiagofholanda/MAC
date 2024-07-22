@@ -2,334 +2,371 @@ import streamlit as st
 import pandas as pd
 import os
 from datetime import datetime
-# from win32com.client import Dispatch  # Removido para compatibilidade
-from fpdf import FPDF # type: ignore
+from fpdf import FPDF
+from spellchecker import SpellChecker # type: ignore
 
-# Função para verificar e instalar as dependências necessárias
-def verificar_instalar_dependencias():
-    import subprocess
-    import sys
-
-    try:
-        import pandas
-        import openpyxl # type: ignore
-        # import win32com.client  # Removido para compatibilidade
-        import xlsxwriter # type: ignore
-        import PIL
-        import fpdf # type: ignore
-    except ImportError:
-        st.write("Instalando dependências necessárias...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
-        st.write("Dependências instaladas.")
-
-# Verificar e instalar dependências
-verificar_instalar_dependencias()
-
-# Funções para análise de Preenchimento, Tipos, Ortografia, Nomes, Intervalos, Condicionais
-
-def AnalisePreenchimento(df_bd, df_matriz):
-    resultado = []
-    for coluna in range(1, len(df_matriz.columns)):
-        texto = df_matriz.columns[coluna]
-        regra = df_matriz.iloc[4, coluna]
-        if texto in df_bd.columns:
-            for linha in range(len(df_bd)):
-                valor_celula = df_bd.loc[linha, texto]
-                if (regra == "OBRIGATÓRIO" and pd.isna(valor_celula)) or (regra == "VAZIO" and not pd.isna(valor_celula)):
-                    motivo = "Preenchimento obrigatório" if regra == "OBRIGATÓRIO" else "Sem preenchimento"
-                    resultado.append({
-                        'Data': pd.Timestamp.now(),
-                        'Linha': linha+1,
-                        'Coluna': texto,
-                        'Valor': valor_celula,
-                        'Analise': 'Preenchimento'
+# Analysis functions for Fill, Types, Spelling, Names, Ranges, Conditionals
+def analyze_fill(df_bd, df_matrix):
+    result = []
+    for column in range(1, len(df_matrix.columns)):
+        text = df_matrix.columns[column]
+        rule = df_matrix.iloc[4, column]
+        if text in df_bd.columns:
+            for row in range(len(df_bd)):
+                cell_value = df_bd.loc[row, text]
+                if (rule == "REQUIRED" and pd.isna(cell_value)) or (rule == "EMPTY" and not pd.isna(cell_value)):
+                    reason = "Required fill" if rule == "REQUIRED" else "No fill"
+                    result.append({
+                        'Date': pd.Timestamp.now(),
+                        'Row': row+1,
+                        'Column': text,
+                        'Value': cell_value,
+                        'Analysis': 'Fill'
                     })
-    return pd.DataFrame(resultado)
+    return pd.DataFrame(result)
 
-def AnalisarTipos(df_bd, df_matriz):
-    resultados = []
-    for coluna in range(2, len(df_matriz.columns)):
-        texto = df_matriz.columns[coluna] 
-        parametro = df_matriz.iloc[5, coluna]
-        if texto in df_bd.columns:
-            if parametro == "TEXTO ABC":
-                filtro_alfabetico = df_bd[texto].apply(lambda x: str(x).replace(" ", "").isalpha())
-                inconsistencias = df_bd[~filtro_alfabetico]
-            elif parametro == "DATA":
-                filtro_data_invalida = pd.to_datetime(df_bd[texto], errors='coerce').isna()
-                inconsistencias = df_bd[filtro_data_invalida]
-            elif parametro == "NUMERO":
-                filtro_nao_numerico = pd.to_numeric(df_bd[texto], errors='coerce').isna()
-                inconsistencias = df_bd[filtro_nao_numerico]
+def analyze_types(df_bd, df_matrix):
+    results = []
+    for column in range(2, len(df_matrix.columns)):
+        text = df_matrix.columns[column] 
+        parameter = df_matrix.iloc[5, column]
+        if text in df_bd.columns:
+            if parameter == "TEXT ABC":
+                alpha_filter = df_bd[text].apply(lambda x: str(x).replace(" ", "").isalpha())
+                inconsistencies = df_bd[~alpha_filter]
+            elif parameter == "DATE":
+                date_filter = pd.to_datetime(df_bd[text], errors='coerce').isna()
+                inconsistencies = df_bd[date_filter]
+            elif parameter == "NUMBER":
+                numeric_filter = pd.to_numeric(df_bd[text], errors='coerce').isna()
+                inconsistencies = df_bd[numeric_filter]
             else:
-                inconsistencias = pd.DataFrame()
-            for index, row in inconsistencias.iterrows():
-                resultados.append({
-                    'Data': pd.Timestamp.now(),
-                    'Linha':index+1,
-                    'Coluna': texto,
-                    'Valor': row[texto],
-                    'Analise': 'Tipo'
+                inconsistencies = pd.DataFrame()
+            for index, row in inconsistencies.iterrows():
+                results.append({
+                    'Date': pd.Timestamp.now(),
+                    'Row': index+1,
+                    'Column': text,
+                    'Value': row[text],
+                    'Analysis': 'Type'
                 })
-    return pd.DataFrame(resultados)
+    return pd.DataFrame(results)
 
-def main_verificar_ortografia(df_matriz, df_bd):
-    erros_ortograficos = []
-    for coluna in df_matriz.iloc[6].dropna().index:
-        if df_matriz.iloc[6, df_matriz.columns.get_loc(coluna)] == "DICIONÁRIO ORTOGRÁFICO":
-            erros_ortograficos += verificar_ortografia(coluna, df_bd)
-    return pd.DataFrame(erros_ortograficos)
+def main_check_spelling(df_matrix, df_bd):
+    spelling_errors = []
+    for column in df_matrix.iloc[6].dropna().index:
+        if df_matrix.iloc[6, df_matrix.columns.get_loc(column)] == "SPELLING DICTIONARY":
+            spelling_errors += check_spelling(column, df_bd)
+    return pd.DataFrame(spelling_errors)
 
-def verificar_ortografia(nome_coluna, df_bd):
-    # Verificação de ortografia desativada para compatibilidade
-    # WordApp = iniciar_aplicativo_word()
-    erros_ortograficos = []
-    try:
-        for indice, valor in df_bd[nome_coluna].items():
-            if pd.notnull(valor):
-                # if not verificar_ortografia_word(valor, WordApp):
-                erros_ortograficos.append({
-                    'Data': datetime.now(),
-                    'Linha': indice+1,
-                    'Coluna': nome_coluna,
-                    'Valor': valor,
-                    'Analise': 'Ortografia'
-                })
-    finally:
-        pass
-        # fechar_aplicativo_word(WordApp)
-    return erros_ortograficos
+def check_spelling(column_name, df_bd):
+    spell = SpellChecker(language='en')
+    spelling_errors = []
 
-# Funções de inicialização e fechamento do aplicativo Word removidas
-# def iniciar_aplicativo_word():
-#     WordApp = win32.Dispatch("Word.Application")
-#     WordApp.Visible = False
-#     return WordApp
+    for index, value in df_bd[column_name].items():
+        if pd.notnull(value):
+            words = str(value).split()
+            for word in words:
+                if spell.correction(word) != word:
+                    spelling_errors.append({
+                        'Date': datetime.now(),
+                        'Row': index+1,
+                        'Column': column_name,
+                        'Value': value,
+                        'Analysis': 'Spelling'
+                    })
+    return spelling_errors
 
-# def fechar_aplicativo_word(WordApp):
-#     if WordApp is not None:
-#         WordApp.Quit()
-
-# def verificar_ortografia_word(palavra, WordApp):
-#     try:
-#         return WordApp.CheckSpelling(palavra)
-#     except Exception as e:
-#         st.write(f"Erro ao verificar ortografia: {e}")
-#         return True
-
-def verificar_nomes(df_matriz, df_bd, df_nomes):
-    erros_encontrados = []
-
-    for coluna in df_matriz.iloc[7].dropna().index:
-        if df_matriz.iloc[7, df_matriz.columns.get_loc(coluna)] == "BANCO DE NOMES":
-            for indice, valor in enumerate(df_bd[coluna]):
-                if pd.notnull(valor):
-                    partes_nome = valor.split()
-                    for parte_nome in partes_nome:
-                        if not nome_eh_valido(parte_nome, df_nomes):
-                            erros_encontrados.append({
-                                'Data': datetime.now(),
-                                'Linha': indice + 1,
-                                'Coluna': coluna,
-                                'Valor': valor,
-                                'Analise': 'Nomes'
+def check_names(df_matrix, df_bd, df_names):
+    found_errors = []
+    for column in df_matrix.iloc[7].dropna().index:
+        if df_matrix.iloc[7, df_matrix.columns.get_loc(column)] == "NAMES DATABASE":
+            for index, value in enumerate(df_bd[column]):
+                if pd.notnull(value):
+                    name_parts = value.split()
+                    for name_part in name_parts:
+                        if not is_valid_name(name_part, df_names):
+                            found_errors.append({
+                                'Date': datetime.now(),
+                                'Row': index + 1,
+                                'Column': column,
+                                'Value': value,
+                                'Analysis': 'Names'
                             })
+    return pd.DataFrame(found_errors)
 
-    return pd.DataFrame(erros_encontrados)
+def is_valid_name(name, df_names):
+    return name in df_names.iloc[:, 0].values
 
-def nome_eh_valido(nome, df_nomes):
-    return nome in df_nomes.iloc[:, 0].values
-
-def verificar_intervalos(df_matriz, df_bd, df_intervalos):
+def check_ranges(df_matrix, df_bd, df_ranges):
     df_bd1 = df_bd.fillna(value='')
-    inconsistencias = []
-    row = df_matriz.iloc[8]
-    for col in df_matriz.columns:
-        if 'intervalo' in str(row[col]):
-            intervalo = str(row[col])
+    inconsistencies = []
+    row = df_matrix.iloc[8]
+    for col in df_matrix.columns:
+        if 'range' in str(row[col]):
+            range_str = str(row[col])
             if col in df_bd1.columns:
-                for idx, valor_bd in enumerate(df_bd1[col]):
+                for idx, value_bd in enumerate(df_bd1[col]):
                     try:
-                        float(valor_bd)
-                        if valor_bd not in df_intervalos[intervalo]:
-                            hora_analise = datetime.now()
-                            inconsistencias.append({
-                                'Data': hora_analise,
-                                'Linha': idx + 1,
-                                'Coluna': col,
-                                'Valor': valor_bd,
-                                'Analise': 'Intervalos'
+                        float(value_bd)
+                        if value_bd not in df_ranges[range_str]:
+                            analysis_time = datetime.now()
+                            inconsistencies.append({
+                                'Date': analysis_time,
+                                'Row': idx + 1,
+                                'Column': col,
+                                'Value': value_bd,
+                                'Analysis': 'Ranges'
                             })
                     except:
-                        if str(valor_bd) not in str(df_intervalos[intervalo]):
-                            hora_analise = datetime.now()
-                            inconsistencias.append({
-                                'Data': hora_analise,
-                                'Linha': idx + 1,
-                                'Coluna': col,
-                                'Valor': valor_bd,
-                                'Analise': 'Intervalos'
+                        if str(value_bd) not in str(df_ranges[range_str]):
+                            analysis_time = datetime.now()
+                            inconsistencies.append({
+                                'Date': analysis_time,
+                                'Row': idx + 1,
+                                'Column': col,
+                                'Value': value_bd,
+                                'Analysis': 'Ranges'
                             })
-    return pd.DataFrame(inconsistencias)
+    return pd.DataFrame(inconsistencies)
 
-def verificar_condicionais(df_matriz, df_bd):
-    inconsistencias = []
-    df_matriz1 = df_matriz.fillna(value='')
-    for linha in range(15, 92, 4):
-        linha_matriz = df_matriz1.iloc[linha]
-        for col in range(3, len(linha_matriz)):
-            valor = linha_matriz.iloc[col]
-            if valor != "":
-                coluna_condicionante = valor
-                coluna_condicionada = df_matriz.columns[col]
-                dado_condicionante = df_matriz1.iloc[linha + 1, col]
-                resultado = df_matriz1.iloc[linha + 2, col]
-                if coluna_condicionante in df_bd.columns:
-                    for indice, valor_bd in enumerate(df_bd[coluna_condicionante]):
-                        if valor_bd == dado_condicionante:
-                            if coluna_condicionada in df_bd.columns:
-                                if df_bd[coluna_condicionada][indice] != resultado:
-                                    inconsistencias.append({
-                                        'Data': datetime.now(),
-                                        'Linha': indice + 1,
-                                        'Coluna': coluna_condicionada,
-                                        'Valor': valor_bd,
-                                        'Analise': 'Condicionais'
+def check_conditionals(df_matrix, df_bd):
+    inconsistencies = []
+    df_matrix1 = df_matrix.fillna(value='')
+    for row in range(15, 92, 4):
+        matrix_row = df_matrix1.iloc[row]
+        for col in range(3, len(matrix_row)):
+            value = matrix_row.iloc[col]
+            if value != "":
+                condition_column = value
+                conditional_column = df_matrix.columns[col]
+                conditional_value = df_matrix1.iloc[row + 1, col]
+                result = df_matrix1.iloc[row + 2, col]
+                if condition_column in df_bd.columns:
+                    for index, value_bd in enumerate(df_bd[condition_column]):
+                        if value_bd == conditional_value:
+                            if conditional_column in df_bd.columns:
+                                if df_bd[conditional_column][index] != result:
+                                    inconsistencies.append({
+                                        'Date': datetime.now(),
+                                        'Row': index + 1,
+                                        'Column': conditional_column,
+                                        'Value': value_bd,
+                                        'Analysis': 'Conditionals'
                                     })
                 else:
-                    st.write(f'Coluna condicionante "{coluna_condicionante}" não encontrada em df_bd.')
-    return pd.DataFrame(inconsistencias)
+                    st.write(f'Conditional column "{condition_column}" not found in df_bd.')
+    return pd.DataFrame(inconsistencies)
 
-# Função para selecionar arquivo de banco de dados
-def selecionar_arquivo_banco_dados():
-    caminho_banco_de_dados = st.file_uploader("Selecione o arquivo Excel do banco de dados", type=["xlsx"])
-    if caminho_banco_de_dados:
+# Function to select database file
+def select_database_file():
+    database_file_path = st.file_uploader("Select the Excel database file", type=["xlsx"])
+    if database_file_path:
         try:
             global df_bd
-            df_bd = pd.read_excel(caminho_banco_de_dados)
-            st.success("Arquivo de banco de dados carregado com sucesso.")
+            df_bd = pd.read_excel(database_file_path)
+            st.success("Database file loaded successfully.")
         except Exception as e:
-            st.error(f"Ocorreu um erro ao carregar o arquivo de banco de dados: {str(e)}")
+            st.error(f"An error occurred while loading the database file: {str(e)}")
 
-# Função para selecionar arquivo da matriz
-def selecionar_arquivo_matriz():
-    caminho_matriz = st.file_uploader("Selecione o arquivo Excel da matriz", type=["xlsx"])
-    if caminho_matriz:
+# Function to select matrix file
+def select_matrix_file():
+    matrix_file_path = st.file_uploader("Select the Excel matrix file", type=["xlsx"])
+    if matrix_file_path:
         try:
-            global df_matriz
-            df_matriz = pd.read_excel(caminho_matriz, header=1)
-            st.success("Arquivo de matriz carregado com sucesso.")
+            global df_matrix
+            df_matrix = pd.read_excel(matrix_file_path, header=1)
+            st.success("Matrix file loaded successfully.")
         except Exception as e:
-            st.error(f"Ocorreu um erro ao carregar o arquivo de matriz: {str(e)}")
+            st.error(f"An error occurred while loading the matrix file: {str(e)}")
 
-# Função para selecionar arquivo de nomes
-def selecionar_arquivo_nomes():
-    caminho_nomes = st.file_uploader("Selecione o arquivo Excel de nomes", type=["xlsx"])
-    if caminho_nomes:
+# Function to select names file
+def select_names_file():
+    names_file_path = st.file_uploader("Select the Excel names file", type=["xlsx"])
+    if names_file_path:
         try:
-            global df_nomes
-            df_nomes = pd.read_excel(caminho_nomes)
-            st.success("Arquivo de nomes carregado com sucesso.")
+            global df_names
+            df_names = pd.read_excel(names_file_path)
+            st.success("Names file loaded successfully.")
         except Exception as e:
-            st.error(f"Ocorreu um erro ao carregar o arquivo de nomes: {str(e)}")
+            st.error(f"An error occurred while loading the names file: {str(e)}")
 
-# Função para selecionar arquivo de intervalos
-def selecionar_arquivo_intervalos():
-    caminho_intervalos = st.file_uploader("Selecione o arquivo Excel de intervalos", type=["xlsx"])
-    if caminho_intervalos:
+# Function to select ranges file
+def select_ranges_file():
+    ranges_file_path = st.file_uploader("Select the Excel ranges file", type=["xlsx"])
+    if ranges_file_path:
         try:
-            global df_intervalos
-            df_intervalos = pd.read_excel(caminho_intervalos)
-            st.success("Arquivo de intervalos carregado com sucesso.")
+            global df_ranges
+            df_ranges = pd.read_excel(ranges_file_path)
+            st.success("Ranges file loaded successfully.")
         except Exception as e:
-            st.error(f"Ocorreu um erro ao carregar o arquivo de intervalos: {str(e)}")
+            st.error(f"An error occurred while loading the ranges file: {str(e)}")
 
-# Função para iniciar a verificação de análise de preenchimento
-def iniciar_analise_preenchimento():
-    if 'df_bd' in globals() and 'df_matriz' in globals():
-        resultado = AnalisePreenchimento(df_bd, df_matriz)
-        st.write(resultado)
+# Function to start fill analysis
+def start_fill_analysis():
+    if 'df_bd' in globals() and 'df_matrix' in globals():
+        result = analyze_fill(df_bd, df_matrix)
+        st.write(result)
     else:
-        st.warning('Selecione os arquivos de banco de dados e matriz antes de iniciar a análise.')
+        st.warning('Select the database and matrix files before starting the analysis.')
 
-# Função para iniciar a verificação de análise de tipos
-def iniciar_analise_tipos():
-    if 'df_bd' in globals() and 'df_matriz' in globals():
-        resultado = AnalisarTipos(df_bd, df_matriz)
-        st.write(resultado)
+# Function to start type analysis
+def start_type_analysis():
+    if 'df_bd' in globals() and 'df_matrix' in globals():
+        result = analyze_types(df_bd, df_matrix)
+        st.write(result)
     else:
-        st.warning('Selecione os arquivos de banco de dados e matriz antes de iniciar a análise.')
+        st.warning('Select the database and matrix files before starting the analysis.')
 
-# Função para iniciar a verificação de ortografia
-def iniciar_verificacao_ortografia():
-    if 'df_bd' in globals() and 'df_matriz' in globals():
-        resultado = main_verificar_ortografia(df_matriz, df_bd)
-        st.write(resultado)
+# Function to start spelling check
+def start_spelling_check():
+    if 'df_bd' in globals() and 'df_matrix' in globals():
+        result = main_check_spelling(df_matrix, df_bd)
+        st.write(result)
     else:
-        st.warning('Selecione os arquivos de banco de dados e matriz antes de iniciar a verificação.')
+        st.warning('Select the database and matrix files before starting the check.')
 
-# Função para iniciar a verificação de nomes
-def iniciar_verificacao_nomes():
-    if 'df_bd' in globals() and 'df_matriz' in globals() and 'df_nomes' in globals():
-        resultado = verificar_nomes(df_matriz, df_bd, df_nomes)
-        st.write(resultado)
+# Function to start names check
+def start_names_check():
+    if 'df_bd' in globals() and 'df_matrix' in globals() and 'df_names' in globals():
+        result = check_names(df_matrix, df_bd, df_names)
+        st.write(result)
     else:
-        st.warning('Selecione os arquivos de banco de dados, matriz e nomes antes de iniciar a verificação.')
+        st.warning('Select the database, matrix, and names files before starting the check.')
 
-# Função para iniciar a verificação de intervalos
-def iniciar_verificacao_intervalos():
-    if 'df_bd' in globals() and 'df_matriz' in globals() and 'df_intervalos' in globals():
-        resultado = verificar_intervalos(df_matriz, df_bd, df_intervalos)
-        st.write(resultado)
+# Function to start ranges check
+def start_ranges_check():
+    if 'df_bd' in globals() and 'df_matrix' in globals() and 'df_ranges' in globals():
+        result = check_ranges(df_matrix, df_bd, df_ranges)
+        st.write(result)
     else:
-        st.warning('Selecione os arquivos de banco de dados, matriz e intervalos antes de iniciar a verificação.')
+        st.warning('Select the database, matrix, and ranges files before starting the check.')
 
-# Função para iniciar a verificação de condicionais
-def iniciar_verificacao_condicionais():
-    if 'df_bd' in globals() and 'df_matriz' in globals():
-        resultado = verificar_condicionais(df_matriz, df_bd)
-        st.write(resultado)
+# Function to start conditionals check
+def start_conditionals_check():
+    if 'df_bd' in globals() and 'df_matrix' in globals():
+        result = check_conditionals(df_matrix, df_bd)
+        st.write(result)
     else:
-        st.warning('Selecione os arquivos de banco de dados e matriz antes de iniciar a verificação.')
+        st.warning('Select the database and matrix files before starting the check.')
 
-# Função para concatenar todos os resultados em um relatório
-def concatenar_resultados():
-    global resultado_concatenado
-    if 'df_bd' in globals() and 'df_matriz' in globals():
-        resultado1 = AnalisePreenchimento(df_bd, df_matriz)
-        resultado2 = AnalisarTipos(df_bd, df_matriz)
-        resultado3 = main_verificar_ortografia(df_matriz, df_bd)
-        resultado4 = verificar_nomes(df_matriz, df_bd, df_nomes) if 'df_nomes' in globals() else pd.DataFrame()
-        resultado5 = verificar_intervalos(df_matriz, df_bd, df_intervalos) if 'df_intervalos' in globals() else pd.DataFrame() # type: ignore
-        resultado6 = verificar_condicionais(df_matriz, df_bd)
-        resultado_concatenado = pd.concat([resultado1, resultado2, resultado3, resultado4, resultado5, resultado6], ignore_index=True)
-        st.write(resultado_concatenado.head(20))
+# Function to concatenate all results into a report
+def concatenate_results():
+    global concatenated_result
+    if 'df_bd' in globals() and 'df_matrix' in globals():
+        result1 = analyze_fill(df_bd, df_matrix)
+        result2 = analyze_types(df_bd, df_matrix)
+        result3 = main_check_spelling(df_matrix, df_bd)
+        result4 = check_names(df_matrix, df_bd, df_names) if 'df_names' in globals() else pd.DataFrame()
+        result5 = check_ranges(df_matrix, df_bd, df_ranges) if 'df_ranges' in globals() else pd.DataFrame()
+        result6 = check_conditionals(df_matrix, df_bd)
+        concatenated_result = pd.concat([result1, result2, result3, result4, result5, result6], ignore_index=True)
+        st.write(concatenated_result.head(20))
     else:
-        st.warning('Selecione todos os arquivos necessários antes de executar as verificações.')
+        st.warning('Select all necessary files before running the checks.')
 
-# Interface do Streamlit
-st.title('Verificador de Inconsistências - NMC')
+# Function to export results to PDF
+def export_results_to_pdf():
+    global concatenated_result
 
-# Carregar arquivos
-st.sidebar.header('Importar Arquivos')
-selecionar_arquivo_banco_dados()
-selecionar_arquivo_matriz()
-selecionar_arquivo_nomes()
-selecionar_arquivo_intervalos()
+    if concatenated_result is not None and not concatenated_result.empty:
+        try:
+            # Class to generate the PDF
+            class PDF(FPDF):
+                def header(self):
+                    if hasattr(self, 'logo_path'):
+                        self.image(self.logo_path, 10, 8, 33)
+                    self.set_font('Arial', 'B', 12)
+                    self.cell(0, 10, 'Inconsistencies Report', 0, 1, 'C')
+                    self.ln(10)
 
-# Executar análises
-st.sidebar.header('Executar Análises')
-if st.sidebar.button('Análise de Preenchimento'):
-    iniciar_analise_preenchimento()
-if st.sidebar.button('Análise de Tipos'):
-    iniciar_analise_tipos()
-if st.sidebar.button('Verificar Ortografia'):
-    iniciar_verificacao_ortografia()
-if st.sidebar.button('Verificar Nomes'):
-    iniciar_verificacao_nomes()
-if st.sidebar.button('Verificar Intervalos'):
-    iniciar_verificacao_intervalos()
-if st.sidebar.button('Verificar Condicionais'):
-    iniciar_verificacao_condicionais()
-if st.sidebar.button('Executar Verificações'):
-    concatenar_resultados()
+                def footer(self):
+                    self.set_y(-30)
+                    self.set_font('Arial', 'I', 8)
+                    self.cell(0, 10, 'Source: GIS NMC Team: Pedro Reis, Carolina Peres, Melquisedeque Nunes, Tiago Holanda', 0, 1, 'C')
+                    self.set_y(-15)
+                    self.cell(0, 10, 'Page %s' % self.page_no(), 0, 0, 'C')
+
+                def chapter_title(self, title):
+                    self.set_font('Arial', 'B', 16)
+                    self.cell(0, 10, title, 0, 1, 'C')
+                    self.ln(10)
+
+                def chapter_body(self, body):
+                    self.set_font('Arial', '', 12)
+                    self.multi_cell(0, 10, body)
+                    self.ln()
+
+                def table_row(self, row):
+                    self.set_font('Arial', '', 12)
+                    for item in row:
+                        self.cell(0, 10, f'{item}', border=1, ln=0)
+                    self.ln(10)
+
+            logo_path = "path_to_logo"  # Update with the path to the desired logo
+
+            # Generating a PDF for each row
+            for index, row in concatenated_result.iterrows():
+                pdf = PDF()
+                pdf.logo_path = logo_path
+                pdf.add_page()
+                pdf.chapter_title(f'Results for Row {index + 1}')
+                
+                for column, value in row.items():
+                    pdf.set_font('Arial', 'B', 12)
+                    column_width = pdf.get_string_width(f'{column}:') + 10
+                    pdf.cell(column_width, 10, f'{column}:', border=1)
+                    pdf.set_font('Arial', '', 12)
+                    pdf.multi_cell(0, 10, f'{value}', border=1)
+                    pdf.ln(5)
+
+                output_dir = "PDFs"
+                os.makedirs(output_dir, exist_ok=True)
+                output_path = os.path.join(output_dir, f'Row_{index + 1}.pdf')
+                pdf.output(output_path)
+
+            # Read the PDF file and allow download
+            with open(output_path, "rb") as pdf_file:
+                PDFbyte = pdf_file.read()
+
+            st.download_button(label="Download PDF",
+                               data=PDFbyte,
+                               file_name="inconsistencies_report.pdf",
+                               mime='application/octet-stream')
+
+            st.success('PDFs generated successfully!')
+        except Exception as e:
+            st.error(f'An error occurred while exporting the data:\n{str(e)}')
+    else:
+        st.warning('No data to export.')
+
+# Streamlit interface
+st.title('Inconsistencies Checker - NMC')
+
+# Load files
+st.sidebar.header('Import Files')
+select_database_file()
+select_matrix_file()
+select_names_file()
+select_ranges_file()
+
+# Run analyses
+st.sidebar.header('Run Analyses')
+if st.sidebar.button('Fill Analysis'):
+    start_fill_analysis()
+if st.sidebar.button('Type Analysis'):
+    start_type_analysis()
+if st.sidebar.button('Spelling Check'):
+    start_spelling_check()
+if st.sidebar.button('Names Check'):
+    start_names_check()
+if st.sidebar.button('Ranges Check'):
+    start_ranges_check()
+if st.sidebar.button('Conditionals Check'):
+    start_conditionals_check()
+if st.sidebar.button('Run Checks'):
+    concatenate_results()
+
+# Button to export results to PDF
+if st.sidebar.button('Export Results to PDF'):
+    export_results_to_pdf()
