@@ -351,20 +351,20 @@ select_names_file()
 select_ranges_file()
 
 # Run analyses
-st.sidebar.header('Run Analyses')
-if st.sidebar.button('Fill Analysis'):
+st.sidebar.header('Executar análises')
+if st.sidebar.button('Análise de preenchimento'):
     start_fill_analysis()
-if st.sidebar.button('Type Analysis'):
+if st.sidebar.button('Análise de tipo'):
     start_type_analysis()
-if st.sidebar.button('Spelling Check'):
+if st.sidebar.button('Verificação ortográfica'):
     start_spelling_check()
-if st.sidebar.button('Names Check'):
+if st.sidebar.button('Verificação de nomes'):
     start_names_check()
-if st.sidebar.button('Ranges Check'):
+if st.sidebar.button('Verificação de intervalos'):
     start_ranges_check()
-if st.sidebar.button('Conditionals Check'):
+if st.sidebar.button('Verificação de condicionais'):
     start_conditionals_check()
-if st.sidebar.button('Run Checks'):
+if st.sidebar.button('Executar verificações'):
     concatenate_results()
 
 # Button to export results to PDF
